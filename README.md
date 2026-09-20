@@ -27,7 +27,7 @@ Claudex Loop gives a plan an independent review before implementation, then give
 
 Choose either builder with `builder=claude` or `builder=codex`. The inspector follows the builder choice and always uses the other provider. If the coordinator takes over fixes, those new edits need another independent inspection. With mixed authorship, the log records who wrote and reviewed each part.
 
-Model choices remain configurable. Use **Claude Fable 5.1** and **GPT-6 Astra** when selected and available on your accounts, or retain each CLI's configured model. The host UI selection does not automatically change the other CLI's configuration. Requested and observed model information is recorded separately, and there is no silent model/provider fallback.
+This fork defaults to **Opus 5 / high** for Claude reviews and inspections, **Sonnet 5 / high** for delegated Claude builds, **GPT-6 Astra / high** for Codex reviews and inspections, and **GPT-5.6 Sol / high** for delegated Codex builds. Explicit per-role model and effort requests override these defaults independently. A direct host build keeps the current conversation's model and effort. See the [model selection table](skills/claudex-loop/SKILL.md#resolve-roles-once). Requested and observed model information is recorded separately, and there is no silent model/provider fallback.
 
 ## Claudex Route: standalone task routing
 
@@ -82,7 +82,9 @@ Use `/claudex-loop:claudex-route` for a lightweight recommendation or one-off ha
 
 ### Codex or manual skill installation
 
-Clone this repository and copy all skill directories together. The compatibility commands share the runtime inside `claudex-loop`; copying an alias alone is insufficient. `claudex-route` can also be installed on its own.
+Clone this repository and copy the skill directories you need. `claudex-loop` and `claudex-route` each work on their own. The compatibility commands `codex-review` and `codex-build` require the sibling `claudex-loop` directory; copying an alias alone is insufficient.
+
+For the shared setup where `~/.claude/skills` already points to `~/.agents/skills`, install only `skills/claudex-loop/` into `~/.agents/skills/claudex-loop/`. Both hosts then use the same copy. The commands below install the complete collection into separate host directories instead.
 
 To install **only Claudex Route**, copy `skills/claudex-route/` into `~/.agents/skills/` for Codex or `~/.claude/skills/` for Claude Code. No other skill from this repository is required. The commands below install the complete collection into both hosts.
 
@@ -108,7 +110,7 @@ Open a new session to pick up the skills. In Codex, invoke `$claudex-route` for 
 claudex this feature — plan and implement it
 claudex this plan, mode=review, plan=docs/migration.md, rounds=3
 claudex this feature, builder=codex, reviewer_model=gpt-6-astra
-claudex this feature, builder=claude, reviewer_model=claude-fable-5-1
+claudex this feature, builder=claude, reviewer_model=claude-opus-5, reviewer_effort=xhigh
 ```
 
 The third example starts in Claude Code; the fourth starts in Codex. The host selects the opposite reviewer automatically. `codex-review` remains an explicit Codex review command; `codex-build` remains an explicit Codex builder command. For automatic host-based routing, use `claudex-loop`.
@@ -121,8 +123,8 @@ The third example starts in Claude Code; the fourth starts in Codex. The host se
 | `plan` / `PLAN_FILE` | `PLAN.md` | Plan path, carried through every phase |
 | `log` / `LOG_FILE` | `PLAN-REVIEW-LOG.md` | Append-only decision log |
 | `builder` | current host | `claude` or `codex` |
-| `reviewer_model`, `builder_model`, `inspector_model` | each CLI's configuration | Explicit per-role model override |
-| `reviewer_effort`, `builder_effort`, `inspector_effort` | each CLI's configuration | Explicit supported reasoning effort |
+| `reviewer_model`, `builder_model`, `inspector_model` | this fork's provider/role defaults | Explicit per-role model override |
+| `reviewer_effort`, `builder_effort`, `inspector_effort` | this fork's provider/role defaults | Explicit supported reasoning effort override |
 | `rounds` / `MAX_ROUNDS` | `5` | Completed plan-review round cap |
 | `MAX_FIX_ROUNDS` | `2` | Build-fix attempt cap |
 | `MAX_INSPECTION_ROUNDS` | `2` | Initial inspection plus one reinspection |

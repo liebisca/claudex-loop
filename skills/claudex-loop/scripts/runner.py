@@ -17,6 +17,10 @@ import uuid
 
 
 PROVIDERS = ("claude", "codex")
+MODEL_DEFAULTS = {
+    "claude": {"build": ("claude-sonnet-5", "high"), "review": ("claude-opus-5", "high")},
+    "codex": {"build": ("gpt-5.6-sol", "high"), "review": ("gpt-6-astra", "high")},
+}
 REVIEW_SCHEMA = {
     "type": "object", "additionalProperties": False,
     "properties": {
@@ -288,6 +292,11 @@ def run(args) -> int:
         return 0
     if args.mode == "inspect" and (not args.base or args.resume):
         raise RunError("Inspection requires --base and a fresh session (no --resume).")
+    default_model, default_effort = MODEL_DEFAULTS[provider]["build" if args.mode == "build" else "review"]
+    if args.model is None:
+        args.model = default_model
+    if args.effort is None:
+        args.effort = default_effort
     previous = (previous_record(Path(args.resume), repo, plan, provider, args.mode,
                                 args.model, args.effort) if args.resume else None)
     before = snapshot(repo, args.base) if args.mode == "inspect" else None
@@ -358,7 +367,7 @@ def run(args) -> int:
         argv = prefix + command(provider, args.mode, run_dir, args.model, args.effort,
                                 previous["session_id"] if previous else None)
         save(run_dir / "command.json", argv)
-        print(json.dumps({"provider": provider, "model": args.model or "CLI default (unresolved)",
+        print(json.dumps({"provider": provider, "model": args.model, "effort": args.effort,
                           "mode": args.mode, "artifacts": str(run_dir)}), flush=True)
         code = execute(argv, prompt, repo, run_dir, args.timeout)
         record["exit_code"] = code
@@ -392,9 +401,10 @@ def main(argv=None) -> int:
     parser.add_argument("--provider", choices=PROVIDERS)
     parser.add_argument("--repo", default=".")
     parser.add_argument("--plan", default="PLAN.md")
-    parser.add_argument("--model", help="Explicit model override; omitted means provider CLI default.")
+    parser.add_argument("--model", help="Override this fork's provider/role model default.")
     parser.add_argument("--cli", help="Absolute CLI executable path when PATH resolves to an older installation.")
-    parser.add_argument("--effort", choices=("low", "medium", "high", "xhigh", "max"))
+    parser.add_argument("--effort", choices=("low", "medium", "high", "xhigh", "max"),
+                        help="Override this fork's provider/role effort default.")
     parser.add_argument("--resume", help="Prior successful result.json, never a guessed session or --last.")
     parser.add_argument("--feedback", help="Host-authored UTF-8 dispositions/fix-list file.")
     parser.add_argument("--base", help="Pre-build commit for complete code inspection.")

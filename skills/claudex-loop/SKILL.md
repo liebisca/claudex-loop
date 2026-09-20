@@ -18,7 +18,17 @@ Identify the actual host from your runtime, not PATH, installed skills, model-na
 
 Honor `builder=claude|codex`. The inspector is always the other provider. The host remains coordinator even when the other provider builds. To swap the planner, start the conversation in the other host; do not pretend a CLI reviewer is the user's planning conversation.
 
-Model selection is independent of provider roles. Preserve the host's selected model. Review/build CLI calls inherit their own configuration unless `reviewer_model`, `builder_model`, or `inspector_model` is supplied; map these to the runner's `--model` for that invocation. Apply an explicit `*_effort` similarly. Fable 5.1 and GPT-6 Astra are suitable explicit choices, not mandatory pins. A model in the host UI does not prove which model a separate CLI will use. Report requested and observed model information separately; report an unresolved CLI default honestly. Never silently fall back to another model/provider on a failure.
+Model selection is independent of provider roles. Preserve the host's selected model and effort when it plans or implements directly. This fork uses these defaults for newly launched CLI roles:
+
+| Role | Claude model / effort | Codex model / effort |
+|---|---|---|
+| Plan reviewer | `claude-opus-5` / `high` | `gpt-6-astra` / `high` |
+| Final inspector | `claude-opus-5` / `high` | `gpt-6-astra` / `high` |
+| Delegated builder | `claude-sonnet-5` / `high` | `gpt-5.6-sol` / `high` |
+
+Explicit user choices override these defaults. Map `reviewer_model`, `builder_model`, or `inspector_model` to the runner's `--model` for that invocation, and the corresponding `*_effort` to `--effort`. Natural-language requests such as "use Opus with xhigh for the final inspection" have the same precedence. Override only the requested role and setting; leave other defaults intact. If neither is supplied, the runner applies the table above, not the CLI's configured model or effort. Do not switch the current host model or delegate its implementation merely to match the builder default.
+
+Report requested and observed model information separately; an explicit selection is not proof of which model actually answered. Never silently fall back to another model/provider on a failure.
 
 Read [the runtime reference](references/runtime.md) before launching a CLI. Resolve its runner relative to this installed SKILL.md, never relative to the project being reviewed. Use absolute paths when launching it.
 

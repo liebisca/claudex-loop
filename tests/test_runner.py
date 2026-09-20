@@ -127,13 +127,54 @@ class RunnerTests(unittest.TestCase):
                 self.assertIn(str(self.plan), (path.parent / "prompt.txt").read_text())
                 self.assertEqual(record["response"]["verdict"], "APPROVED")
 
-    def test_unpinned_and_explicit_model_selection(self):
-        for provider in runner.PROVIDERS:
-            args = runner.command(provider, "review", self.root)
-            self.assertNotIn("--model", args)
-            self.assertNotIn("-m", args)
-            pinned = runner.command(provider, "review", self.root, "chosen-model", "high")
-            self.assertIn("chosen-model", pinned)
+    def test_role_defaults_reach_cli_and_result(self):
+        cases = (
+            ("claude", "review", (), "gpt-6-astra", "high"),
+            ("codex", "review", (), "claude-opus-5", "high"),
+            ("claude", "inspect", (), "gpt-6-astra", "high"),
+            ("codex", "inspect", (), "claude-opus-5", "high"),
+            ("codex", "inspect", ("--builder", "claude"), "gpt-6-astra", "high"),
+            ("claude", "inspect", ("--builder", "codex"), "claude-opus-5", "high"),
+            ("claude", "build", (), "claude-sonnet-5", "high"),
+            ("codex", "build", (), "gpt-5.6-sol", "high"),
+            ("codex", "build", ("--builder", "claude"), "claude-sonnet-5", "high"),
+            ("claude", "build", ("--builder", "codex"), "gpt-5.6-sol", "high"),
+        )
+        for host, mode, extra, model, effort in cases:
+            with self.subTest(host=host, mode=mode, extra=extra):
+                if mode == "inspect":
+                    extra += ("--base", self.base)
+                elif mode == "build":
+                    extra += ("--unreviewed-spec", "--proof", "python check.py")
+                code, record, path, _ = self.invoke(host, mode, extra=extra)
+                self.assertEqual(code, 0, record)
+                self.assertEqual((record["requested_model"], record["requested_effort"]), (model, effort))
+                argv = json.loads((path.parent / "command.json").read_text())
+                self.assertEqual(argv[argv.index("--model" if record["provider"] == "claude" else "-m") + 1], model)
+                self.assertIn(effort if record["provider"] == "claude" else f'model_reasoning_effort="{effort}"', argv)
+
+    def test_model_and_effort_overrides_are_independent(self):
+        for host, default_model in (("claude", "gpt-6-astra"), ("codex", "claude-opus-5")):
+            for extra, model, effort in (
+                (("--model", "chosen-model"), "chosen-model", "high"),
+                (("--effort", "medium"), default_model, "medium"),
+                (("--model", "chosen-model", "--effort", "xhigh"), "chosen-model", "xhigh"),
+            ):
+                with self.subTest(host=host, extra=extra):
+                    code, record, path, _ = self.invoke(host, extra=extra)
+                    self.assertEqual(code, 0, record)
+                    self.assertEqual((record["requested_model"], record["requested_effort"]), (model, effort))
+                    argv = json.loads((path.parent / "command.json").read_text())
+                    self.assertIn(model, argv)
+                    self.assertIn(effort if record["provider"] == "claude" else f'model_reasoning_effort="{effort}"', argv)
+
+    def test_resume_accepts_explicit_settings_matching_defaults(self):
+        for host, model in (("claude", "gpt-6-astra"), ("codex", "claude-opus-5")):
+            with self.subTest(host=host):
+                _, _, previous, _ = self.invoke(host)
+                code, record, _, _ = self.invoke(host, extra=("--resume", str(previous), "--model", model, "--effort", "high"))
+                self.assertEqual(code, 0, record)
+                self.assertEqual(record["session_id"], SESSION)
 
     def test_claude_exposes_only_read_tools_and_no_mcp(self):
         args = runner.command("claude", "review", self.root)
@@ -219,6 +260,10 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIsNone(record)
         self.assertIn("requested_model", error)
+        code, record, _, error = self.invoke(extra=("--resume", str(previous), "--effort", "max"))
+        self.assertEqual(code, 1)
+        self.assertIsNone(record)
+        self.assertIn("requested_effort", error)
 
     def test_timeout_records_failure(self):
         code, record, _, _ = self.invoke(case="timeout", extra=("--timeout", "1"))

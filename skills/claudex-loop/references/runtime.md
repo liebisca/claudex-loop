@@ -13,7 +13,9 @@ python RUNNER review --host claude --repo PROJECT --plan docs/implementation.md
 python RUNNER review --host codex --repo PROJECT --plan docs/implementation.md
 ```
 
-For an explicit model choice, add e.g. `--model gpt-6-astra --effort high` to a Codex call, or `--model claude-fable-5-1` to a Claude call. Omit these to use CLI configuration. Repeat explicit model/effort choices when resuming; the runner refuses mismatches. No global configuration is changed.
+The runner applies the [provider/role defaults](../SKILL.md#resolve-roles-once) before launching a CLI: Astra/high for Codex reviews and inspections, Sol/high for Codex builds, Opus 5/high for Claude reviews and inspections, and Sonnet 5/high for Claude builds. It passes explicit model and effort flags, overriding CLI configuration for this invocation only. A direct host build keeps the current conversation's settings.
+
+Use `--model` and `--effort` to override either setting independently, for example `--model gpt-5.6-sol --effort xhigh`. The startup summary and result record show the resolved selections. Repeat overrides when resuming; the runner compares resolved model/effort and refuses mismatches. A changed default also requires an explicit matching override or a new session. Records from the upstream version that left model/effort unresolved cannot be resumed under these defaults. No global configuration is changed.
 
 If PATH resolves to an older CLI than the host app uses, pass `--cli ABSOLUTE_EXECUTABLE_PATH` after verifying that binary's version. Do not guess an app installation path or silently rewrite global PATH. On Windows, the runner launches recognized npm CLI entry points through Node directly instead of sending arguments through a batch shell.
 
