@@ -124,7 +124,10 @@ class RunnerTests(unittest.TestCase):
                 self.assertEqual(record["session_id"], SESSION)
                 self.assertEqual(record["plan"], str(self.plan))
                 self.assertEqual(record["plan_sha256"], runner.digest(self.plan.read_bytes()))
-                self.assertIn(str(self.plan), (path.parent / "prompt.txt").read_text())
+                prompt = (path.parent / "prompt.txt").read_text()
+                self.assertIn(str(self.plan), prompt)
+                self.assertIn("repeatedly ask 'then what?'", prompt)
+                self.assertIn("prefer leaving correct plans and code unchanged", prompt)
                 self.assertEqual(record["response"]["verdict"], "APPROVED")
 
     def test_role_defaults_reach_cli_and_result(self):
