@@ -18,7 +18,7 @@ import uuid
 
 PROVIDERS = ("claude", "codex")
 MODEL_DEFAULTS = {
-    "claude": {"build": ("claude-sonnet-5", "high"), "review": ("claude-opus-5", "high")},
+    "claude": {"build": ("claude-sonnet-5", "high"), "review": ("claude-opus-5-5", "high")},
     "codex": {"build": ("gpt-5.6-sol", "high"), "review": ("gpt-6-astra", "high")},
 }
 REVIEW_SCHEMA = {

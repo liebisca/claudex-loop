@@ -27,7 +27,7 @@ Claudex Loop gives a plan an independent review before implementation, then give
 
 Choose either builder with `builder=claude` or `builder=codex`. The inspector follows the builder choice and always uses the other provider. If the coordinator takes over fixes, those new edits need another independent inspection. With mixed authorship, the log records who wrote and reviewed each part.
 
-This fork defaults to **Opus 5 / high** for Claude reviews and inspections, **Sonnet 5 / high** for delegated Claude builds, **GPT-6 Astra / high** for Codex reviews and inspections, and **GPT-5.6 Sol / high** for delegated Codex builds. Explicit per-role model and effort requests override these defaults independently. A direct host build keeps the current conversation's model and effort. See the [model selection table](skills/claudex-loop/SKILL.md#resolve-roles-once). Requested and observed model information is recorded separately, and there is no silent model/provider fallback.
+This fork defaults to **Opus 5.5 / high** for Claude reviews and inspections, **Sonnet 5 / high** for delegated Claude builds, **GPT-6 Astra / high** for Codex reviews and inspections, and **GPT-5.6 Sol / high** for delegated Codex builds. Explicit per-role model and effort requests override these defaults independently. A direct host build keeps the current conversation's model and effort. See the [model selection table](skills/claudex-loop/SKILL.md#resolve-roles-once). Requested and observed model information is recorded separately, and there is no silent model/provider fallback.
 
 ## Claudex Route: standalone task routing
 
@@ -110,7 +110,7 @@ Open a new session to pick up the skills. In Codex, invoke `$claudex-route` for 
 claudex this feature — plan and implement it
 claudex this plan, mode=review, plan=docs/migration.md, rounds=3
 claudex this feature, builder=codex, reviewer_model=gpt-6-astra
-claudex this feature, builder=claude, reviewer_model=claude-opus-5, reviewer_effort=xhigh
+claudex this feature, builder=claude, reviewer_model=claude-opus-5-5, reviewer_effort=xhigh
 ```
 
 The third example starts in Claude Code; the fourth starts in Codex. The host selects the opposite reviewer automatically. `codex-review` remains an explicit Codex review command; `codex-build` remains an explicit Codex builder command. For automatic host-based routing, use `claudex-loop`.

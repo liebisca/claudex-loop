@@ -13,7 +13,7 @@ python RUNNER review --host claude --repo PROJECT --plan docs/implementation.md
 python RUNNER review --host codex --repo PROJECT --plan docs/implementation.md
 ```
 
-The runner applies the [provider/role defaults](../SKILL.md#resolve-roles-once) before launching a CLI: Astra/high for Codex reviews and inspections, Sol/high for Codex builds, Opus 5/high for Claude reviews and inspections, and Sonnet 5/high for Claude builds. It passes explicit model and effort flags, overriding CLI configuration for this invocation only. A direct host build keeps the current conversation's settings.
+The runner applies the [provider/role defaults](../SKILL.md#resolve-roles-once) before launching a CLI: Astra/high for Codex reviews and inspections, Sol/high for Codex builds, Opus 5.5/high for Claude reviews and inspections, and Sonnet 5/high for Claude builds. It passes explicit model and effort flags, overriding CLI configuration for this invocation only. A direct host build keeps the current conversation's settings.
 
 Use `--model` and `--effort` to override either setting independently, for example `--model gpt-5.6-sol --effort xhigh`. The startup summary and result record show the resolved selections. Repeat overrides when resuming; the runner compares resolved model/effort and refuses mismatches. A changed default also requires an explicit matching override or a new session. Records from the upstream version that left model/effort unresolved cannot be resumed under these defaults. No global configuration is changed.
 
@@ -48,6 +48,6 @@ Records contain the plan SHA256, CLI version, requested model/effort, returned s
 
 ## Compatibility
 
-Live-tested development baseline: Codex CLI **0.153.4** with **GPT-6 Astra**, and Claude Code **2.1.261** with **Fable 5.1**, on Windows. The older npm Codex CLI 0.144.5 exposed the required flags but Astra rejected it with “requires a newer version of Codex.” A version/help probe alone does not establish model compatibility. Verify the selected binary and account; see the repository's validation record for actual live coverage. The automated suite uses fake CLI processes and does not consume model quota. Optional live smoke tests should use disposable fixtures and an explicit model, never a production build.
+Live-tested development baseline: Codex CLI **0.153.4** with **GPT-6 Astra**, and Claude Code **2.1.261** with **Fable 5.1**, on Windows. Claude Opus 5.5 requires Claude Code **2.1.280** or later. The older npm Codex CLI 0.144.5 exposed the required flags but Astra rejected it with “requires a newer version of Codex.” A version/help probe alone does not establish model compatibility. Verify the selected binary and account; see the repository's validation record for actual live coverage. The automated suite uses fake CLI processes and does not consume model quota. Optional live smoke tests should use disposable fixtures and an explicit model, never a production build.
 
 Primary references: [Claude programmatic usage](https://code.claude.com/docs/en/headless), [Claude CLI](https://code.claude.com/docs/en/cli-reference), [Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode).
