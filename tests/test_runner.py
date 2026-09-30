@@ -57,6 +57,13 @@ if 'exec' in sys.argv:
     output = pathlib.Path(sys.argv[sys.argv.index('-o')+1])
     output.write_text('Built; proof passed.' if case == 'build' else json.dumps(review))
     print(json.dumps({'type':'thread.started', 'thread_id':session}))
+    if case == 'separator':
+        # Codex leaves U+0085/U+2028/U+2029 in command output unescaped.
+        item = {'type':'command_execution', 'aggregated_output':'e.NEL="\x85",e.LS="\u2028",e.PS="\u2029"'}
+        sys.stdout.flush()
+        sys.stdout.buffer.write((json.dumps({'type':'item.completed', 'item':item},
+                                            ensure_ascii=False) + '\n').encode('utf-8'))
+        sys.stdout.buffer.flush()
     if case == 'turn_failed':
         print(json.dumps({'type':'turn.failed', 'error':{'message':'quota'}}))
     elif case != 'incomplete':
@@ -208,6 +215,11 @@ class RunnerTests(unittest.TestCase):
         code, record, _, _ = self.invoke(case="incomplete")
         self.assertEqual(code, 1)
         self.assertEqual(record["status"], "failed")
+
+    def test_codex_unicode_line_separators_stay_inside_events(self):
+        code, record, _, _ = self.invoke(case="separator")
+        self.assertEqual(code, 0, record)
+        self.assertEqual(record["response"]["verdict"], "APPROVED")
 
     def test_claude_array_envelope(self):
         code, record, _, _ = self.invoke("codex", case="array")
