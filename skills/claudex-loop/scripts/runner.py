@@ -204,7 +204,9 @@ def execute(argv: list[str], prompt: str, repo: Path, run_dir: Path, timeout: in
 def parse_result(provider: str, mode: str, run_dir: Path, expected_session=None) -> dict:
     stdout = (run_dir / "stdout.txt").read_text(encoding="utf-8", errors="replace")
     if provider == "codex":
-        events = [json.loads(line) for line in stdout.splitlines() if line.strip()]
+        # JSONL: split only on "\n"; splitlines() also splits on U+0085/U+2028/U+2029,
+        # which Codex leaves unescaped inside strings (for example in command output).
+        events = [json.loads(line) for line in stdout.split("\n") if line.strip()]
         if any(not isinstance(e, dict) for e in events):
             raise RunError("Codex event stream contains a non-object event.")
         if any(e.get("type") in ("error", "turn.failed") for e in events):
