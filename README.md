@@ -27,7 +27,7 @@ Claudex Loop gives a plan an independent review before implementation, then give
 
 Choose either builder with `builder=claude` or `builder=codex`. The inspector follows the builder choice and always uses the other provider. If the coordinator takes over fixes, those new edits need another independent inspection. With mixed authorship, the log records who wrote and reviewed each part.
 
-This fork defaults to **Opus 5.5 / high** for Claude reviews and inspections, **Sonnet 5 / high** for delegated Claude builds, **GPT-6 Astra / high** for Codex reviews and inspections, and **GPT-5.6 Sol / high** for delegated Codex builds. Explicit per-role model and effort requests override these defaults independently. A direct host build keeps the current conversation's model and effort. See the [model selection table](skills/claudex-loop/SKILL.md#resolve-roles-once). Requested and observed model information is recorded separately, and there is no silent model/provider fallback.
+This fork defaults to **Opus 5.5 / high** for Claude reviews and inspections, **Sonnet 5 / high** for delegated Claude builds, **GPT-6 Astra / high** for Codex reviews and inspections, and **GPT-6.1 Sol / high** for delegated Codex builds. Explicit per-role model and effort requests override these defaults independently. A direct host build keeps the current conversation's model and effort. See the [model selection table](skills/claudex-loop/SKILL.md#resolve-roles-once). Requested and observed model information is recorded separately, and there is no silent model/provider fallback.
 
 ## Claudex Route: standalone task routing
 

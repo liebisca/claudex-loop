@@ -139,9 +139,9 @@ class RunnerTests(unittest.TestCase):
             ("codex", "inspect", ("--builder", "claude"), "gpt-6-astra", "high"),
             ("claude", "inspect", ("--builder", "codex"), "claude-opus-5-5", "high"),
             ("claude", "build", (), "claude-sonnet-5", "high"),
-            ("codex", "build", (), "gpt-5.6-sol", "high"),
+            ("codex", "build", (), "gpt-6.1-sol", "high"),
             ("codex", "build", ("--builder", "claude"), "claude-sonnet-5", "high"),
-            ("claude", "build", ("--builder", "codex"), "gpt-5.6-sol", "high"),
+            ("claude", "build", ("--builder", "codex"), "gpt-6.1-sol", "high"),
         )
         for host, mode, extra, model, effort in cases:
             with self.subTest(host=host, mode=mode, extra=extra):

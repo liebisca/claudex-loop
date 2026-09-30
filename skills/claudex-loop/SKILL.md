@@ -24,7 +24,7 @@ Model selection is independent of provider roles. Preserve the host's selected m
 |---|---|---|
 | Plan reviewer | `claude-opus-5-5` / `high` | `gpt-6-astra` / `high` |
 | Final inspector | `claude-opus-5-5` / `high` | `gpt-6-astra` / `high` |
-| Delegated builder | `claude-sonnet-5` / `high` | `gpt-5.6-sol` / `high` |
+| Delegated builder | `claude-sonnet-5` / `high` | `gpt-6.1-sol` / `high` |
 
 Explicit user choices override these defaults. Map `reviewer_model`, `builder_model`, or `inspector_model` to the runner's `--model` for that invocation, and the corresponding `*_effort` to `--effort`. Natural-language requests such as "use Opus with xhigh for the final inspection" have the same precedence. Override only the requested role and setting; leave other defaults intact. If neither is supplied, the runner applies the table above, not the CLI's configured model or effort. Do not switch the current host model or delegate its implementation merely to match the builder default.
 
