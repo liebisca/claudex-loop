@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -29,6 +30,10 @@ prompt = sys.stdin.read()
 case = os.environ.get('FAKE_CASE', 'ok')
 if case == 'timeout':
     time.sleep(30)
+if case == 'active_timeout':
+    while True:
+        print(json.dumps({'type':'assistant','message':{'content':[{'type':'tool_use','name':'Read'}]}}), flush=True)
+        time.sleep(0.05)
 if case == 'exit':
     print('Authentication failed', file=sys.stderr)
     sys.exit(7)
@@ -74,7 +79,26 @@ else:
              'modelUsage':{'claude-test':{'inputTokens':10}},'usage':{'input_tokens':10}}
     if case == 'turn_failed':
         value.update(subtype='error_during_execution',is_error=True)
-    print(json.dumps([{'type':'system','subtype':'init'}, value] if case == 'array' else value))
+    if case == 'array':
+        print(json.dumps([{'type':'system','subtype':'init'}, value]))
+    elif case == 'legacy':
+        print(json.dumps(value))
+    else:
+        print(json.dumps({'type':'system','subtype':'init'}), flush=True)
+        message = {'type':'assistant','message':{'model':'claude-reviewer',
+                   'content':[{'type':'text','text':'line\u2028separator\u0085data\u2029'},
+                              {'type':'tool_use','name':'Read','input':{'file_path':'fixture'}}]}}
+        sys.stdout.buffer.write((json.dumps(message, ensure_ascii=False)+'\n').encode('utf-8'))
+        sys.stdout.buffer.flush()
+        if case == 'stream_malformed':
+            print('not json')
+        if case == 'stream_nonobject':
+            print('42')
+        if case == 'incomplete':
+            sys.exit(0)
+        print(json.dumps(value))
+        if case == 'duplicate_result':
+            print(json.dumps(value))
 '''
 
 
@@ -192,6 +216,14 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("--safe-mode", args)
         self.assertIn("--strict-mcp-config", args)
         self.assertEqual(args[args.index("--permission-mode")+1], "dontAsk")
+        self.assertEqual(args[args.index("--output-format")+1], "stream-json")
+        self.assertIn("--verbose", args)
+
+    def test_codex_review_disables_mcp_config_but_build_retains_it(self):
+        for mode in ("review", "inspect"):
+            for session in (None, SESSION):
+                self.assertIn("--ignore-user-config", runner.command("codex", mode, self.root, session=session))
+        self.assertNotIn("--ignore-user-config", runner.command("codex", "build", self.root))
 
     def test_codex_resume_keeps_read_only_and_explicit_session(self):
         args = runner.command("codex", "review", self.root, session=SESSION)
@@ -225,6 +257,29 @@ class RunnerTests(unittest.TestCase):
         code, record, _, _ = self.invoke("codex", case="array")
         self.assertEqual(code, 0)
         self.assertEqual(record["observed_models"], ["claude-test"])
+
+    def test_claude_stream_tracks_tools_and_actual_reviewer_separately(self):
+        code, record, path, _ = self.invoke("codex")
+        self.assertEqual(code, 0, record)
+        self.assertEqual(record["reviewer_models"], ["claude-reviewer"])
+        self.assertEqual(record["observed_models"], ["claude-test"])
+        progress = json.loads((path.parent / "progress.json").read_text())
+        self.assertEqual(progress["events"], 3)
+        self.assertEqual(progress["tool_calls"], 1)
+        self.assertEqual(progress["last_event_type"], "result")
+
+    def test_claude_legacy_result_remains_readable(self):
+        code, record, _, _ = self.invoke("codex", case="legacy")
+        self.assertEqual(code, 0, record)
+        self.assertEqual(record["reviewer_models"], [])
+
+    def test_claude_invalid_and_incomplete_streams_never_approve(self):
+        for case in ("incomplete", "stream_malformed", "stream_nonobject", "duplicate_result"):
+            with self.subTest(case=case):
+                code, record, _, _ = self.invoke("codex", case=case)
+                self.assertEqual(code, 1, record)
+                self.assertEqual(record["status"], "failed")
+                self.assertNotIn("response", record)
 
     def test_revise_and_blocked_are_completed_but_not_approval(self):
         for case in ("revise", "blocked"):
@@ -284,6 +339,62 @@ class RunnerTests(unittest.TestCase):
         code, record, _, _ = self.invoke(case="timeout", extra=("--timeout", "1"))
         self.assertEqual(code, 1)
         self.assertIn("timed out", record["error"])
+
+    def test_active_events_do_not_reset_deadline(self):
+        code, record, path, _ = self.invoke("codex", case="active_timeout", extra=("--timeout", "1"))
+        self.assertEqual(code, 1, record)
+        self.assertIn("timed out after 1s", record["error"])
+        progress = json.loads((path.parent / "progress.json").read_text())
+        self.assertGreater(progress["events"], 0)
+        self.assertGreater(progress["tool_calls"], 0)
+        self.assertLess(record["elapsed_seconds"], 5)
+
+    def test_default_deadline_is_thirty_minutes(self):
+        with patch.object(runner, "run", return_value=0) as run:
+            self.assertEqual(runner.main(["review", "--host", "codex"]), 0)
+        self.assertEqual(run.call_args.args[0].timeout, 1800)
+
+    def test_large_stdin_and_outputs_do_not_deadlock_or_leak_in_progress(self):
+        script = self.root / "large_io.py"
+        script.write_text("import sys,json\n"
+                          "sys.stderr.write('private stderr'*20000); sys.stderr.flush()\n"
+                          "print(json.dumps({'type':'system','private':'PRIVATE REVIEW'*20000}),flush=True)\n"
+                          "assert len(sys.stdin.read()) == 1000000\n")
+        self.artifacts.mkdir()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = runner.execute([sys.executable, str(script)], "x" * 1000000,
+                                  self.repo, self.artifacts, 5, heartbeat=0.05)
+        self.assertEqual(code, 0)
+        self.assertNotIn("PRIVATE REVIEW", output.getvalue())
+        self.assertNotIn("private stderr", output.getvalue())
+        progress = json.loads((self.artifacts / "progress.json").read_text())
+        self.assertEqual(progress["events"], 1)
+        self.assertGreater(progress["stderr_bytes"], 65536)
+
+    @unittest.skipIf(os.name == "nt", "POSIX process-group cleanup; Windows uses taskkill /T")
+    def test_timeout_stops_descendants(self):
+        marker = self.root / "descendant-finished"
+        script = self.root / "descendant.py"
+        child = f"import time,pathlib; time.sleep(2); pathlib.Path({str(marker)!r}).touch()"
+        script.write_text("import subprocess,sys,time\n"
+                          f"subprocess.Popen([sys.executable, '-c', {child!r}])\n"
+                          "print('{\"type\":\"system\"}',flush=True)\n"
+                          "time.sleep(30)\n")
+        self.artifacts.mkdir()
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaisesRegex(runner.RunError, "timed out"):
+            runner.execute([sys.executable, str(script)], "prompt", self.repo, self.artifacts, 1)
+        time.sleep(1.5)
+        self.assertFalse(marker.exists())
+
+    def test_progress_write_failure_stops_the_child(self):
+        self.artifacts.mkdir()
+        started = time.monotonic()
+        with patch.object(runner, "save", side_effect=OSError("disk unavailable")), \
+             self.assertRaisesRegex(OSError, "disk unavailable"):
+            runner.execute([sys.executable, "-c", "import time; time.sleep(30)"],
+                           "prompt", self.repo, self.artifacts, 30)
+        self.assertLess(time.monotonic() - started, 5)
 
     def test_unique_artifacts_and_failed_round_does_not_reuse_reply(self):
         _, _, first, _ = self.invoke()

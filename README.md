@@ -84,7 +84,7 @@ Use `/claudex-loop:claudex-route` for a lightweight recommendation or one-off ha
 
 Clone this repository and copy the skill directories you need. `claudex-loop` and `claudex-route` each work on their own. The compatibility commands `codex-review` and `codex-build` require the sibling `claudex-loop` directory; copying an alias alone is insufficient.
 
-For the shared setup where `~/.claude/skills` already points to `~/.agents/skills`, install only `skills/claudex-loop/` into `~/.agents/skills/claudex-loop/`. Both hosts then use the same copy. The commands below install the complete collection into separate host directories instead.
+For this personal fork, use the `liebisca/claudex-loop` checkout as the source of truth. Update and verify the fork first, then copy its skill files; do not maintain independent fixes only in the installed copy. For the shared setup where `~/.claude/skills` already points to `~/.agents/skills`, install only `skills/claudex-loop/` into `~/.agents/skills/claudex-loop/`. Both hosts then use the same copy. Compare and preserve any local differences before replacing installed files. The commands below install the complete collection into separate host directories instead.
 
 To install **only Claudex Route**, copy `skills/claudex-route/` into `~/.agents/skills/` for Codex or `~/.claude/skills/` for Claude Code. No other skill from this repository is required. The commands below install the complete collection into both hosts.
 
@@ -134,7 +134,7 @@ The third example starts in Claude Code; the fourth starts in Codex. The host se
 
 ## What an approval means
 
-The runner validates a successful CLI turn and a structured review; an empty output file or a session-start event cannot count as approval. The approval records the plan's path and SHA256. Changing the plan invalidates it. Inspections also record the pre-build commit and a fingerprint of the inspected changes, including staged and untracked files. Later code changes need another inspection.
+The runner validates a successful CLI turn and a structured review; an empty output file or a session-start event cannot count as approval. Claude streams events with progress reported every minute and a 30-minute total deadline. Failed runs retain activity diagnostics instead of only an opaque timeout. The approval records the plan's path and SHA256. Changing the plan invalidates it. Inspections also record the pre-build commit and a fingerprint of the inspected changes, including staged and untracked files. Later code changes need another inspection.
 
 A clean structured result does not prove the model is right. The log preserves coverage, limitations and concrete evidence. Zero findings is valid; a large number of findings is not a quality score. `BLOCKED`, execution failures and exhausted round budgets are surfaced rather than converted to approval.
 

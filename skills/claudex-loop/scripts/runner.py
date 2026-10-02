@@ -156,13 +156,15 @@ def command(provider: str, mode: str, run_dir: Path, model=None, effort=None,
                  ["-s", "read-only" if review else "workspace-write"])
         args += ["-c", 'approval_policy="never"', "--json", "-o", str(run_dir / "reply.txt")]
         if review:
-            args += ["--skip-git-repo-check", "--output-schema", str(run_dir / "schema.json")]
+            # Preserve the installed fork's isolation from write-capable MCP servers.
+            args += ["--ignore-user-config", "--skip-git-repo-check",
+                     "--output-schema", str(run_dir / "schema.json")]
         if model:
             args += ["-m", model]
         if effort:
             args += ["-c", f'model_reasoning_effort="{effort}"']
         return args + ["-"]
-    args = ["-p", "--output-format", "json", "--permission-prompts", "none"]
+    args = ["-p", "--output-format", "stream-json", "--verbose", "--permission-prompts", "none"]
     if review:
         args += ["--safe-mode", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
                  "--tools", "Read,Glob,Grep", "--allowedTools", "Read,Glob,Grep",
@@ -181,24 +183,97 @@ def command(provider: str, mode: str, run_dir: Path, model=None, effort=None,
     return args
 
 
-def execute(argv: list[str], prompt: str, repo: Path, run_dir: Path, timeout: int) -> int:
-    """Keep diagnostics and terminate the process tree on timeout/interruption."""
-    with (run_dir / "stdout.txt").open("wb") as out, (run_dir / "stderr.txt").open("wb") as err:
+def execute(argv: list[str], prompt: str, repo: Path, run_dir: Path, timeout: int,
+            heartbeat: float = 60) -> int:
+    """Tail on-disk JSONL on every platform without blocking on stdin or pipes."""
+    started = time.monotonic()
+    last_event = None
+    pending = b""
+    progress = {"events": 0, "tool_calls": 0, "last_event_type": None}
+
+    def read_progress(stream):
+        nonlocal pending, last_event
+        pending += stream.read()
+        lines = pending.split(b"\n")
+        pending = lines.pop()
+        for line in lines:
+            try:
+                event = json.loads(line)
+            except (ValueError, UnicodeError):
+                continue  # Completion parsing remains strict.
+            if not isinstance(event, dict):
+                continue
+            progress["events"] += 1
+            last_event = time.monotonic()
+            progress["last_event_type"] = event.get("type")
+            message = event.get("message")
+            if event.get("type") == "assistant" and isinstance(message, dict):
+                content = message.get("content", [])
+                if isinstance(content, list):
+                    progress["tool_calls"] += sum(isinstance(c, dict) and c.get("type") == "tool_use"
+                                                  for c in content)
+
+    def report():
+        now = time.monotonic()
+        progress.update(elapsed_seconds=round(now - started, 2),
+                        last_event_seconds_ago=None if last_event is None else round(now - last_event, 2),
+                        stderr_bytes=(run_dir / "stderr.txt").stat().st_size)
+        save(run_dir / "progress.json", progress)
+        quiet = "none yet" if last_event is None else f"{now - last_event:.0f}s ago"
+        print(f"CLI progress: elapsed={now - started:.0f}s; events={progress['events']}; "
+              f"tools={progress['tool_calls']}; last event={quiet}; "
+              f"stderr={progress['stderr_bytes']} bytes.", flush=True)
+
+    with tempfile.TemporaryFile() as prompt_input, \
+            (run_dir / "stdout.txt").open("wb") as out, \
+            (run_dir / "stderr.txt").open("wb") as err, \
+            (run_dir / "stdout.txt").open("rb") as stream:
+        prompt_input.write(prompt.encode("utf-8"))
+        prompt_input.seek(0)
         options = {"start_new_session": True} if os.name != "nt" else {
             "creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
-        with subprocess.Popen(argv, cwd=repo, stdin=subprocess.PIPE, stdout=out, stderr=err,
+        with subprocess.Popen(argv, cwd=repo, stdin=prompt_input, stdout=out, stderr=err,
                               **options) as proc:
             try:
-                proc.communicate(prompt.encode("utf-8"), timeout=timeout)
-            except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
+                report()
+                next_report = started + heartbeat
+                while True:
+                    had_events = progress["events"]
+                    read_progress(stream)
+                    now = time.monotonic()
+                    if (not had_events and progress["events"]) or now >= next_report:
+                        report()
+                        next_report = now + heartbeat
+                    if proc.poll() is not None:
+                        read_progress(stream)
+                        report()
+                        return proc.returncode
+                    remaining = timeout - (now - started)
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(argv, timeout)
+                    try:
+                        proc.wait(timeout=min(0.25, remaining))
+                    except subprocess.TimeoutExpired:
+                        pass
+            except BaseException as exc:
+                # Also stop our child if writing diagnostics fails; Popen's context
+                # manager otherwise waits indefinitely while unwinding the error.
                 if os.name == "nt":
                     subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
                                    capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
                 else:
-                    os.killpg(proc.pid, signal.SIGKILL)
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
                 proc.wait()
-                raise RunError("Run timed out or was interrupted; no approval recorded.") from exc
-            return proc.returncode
+                if not isinstance(exc, (subprocess.TimeoutExpired, KeyboardInterrupt)):
+                    raise
+                read_progress(stream)
+                report()
+                reason = f"Run timed out after {timeout}s" if isinstance(exc, subprocess.TimeoutExpired) else "Run interrupted"
+                raise RunError(f"{reason}; observed {progress['events']} events and {progress['tool_calls']} tool calls. "
+                               "See progress.json, stdout.txt and stderr.txt; no approval recorded.") from exc
 
 
 def parse_result(provider: str, mode: str, run_dir: Path, expected_session=None) -> dict:
@@ -220,7 +295,14 @@ def parse_result(provider: str, mode: str, run_dir: Path, expected_session=None)
         value = json.loads(text) if mode != "build" else text
         metadata = {"usage": completed[0].get("usage"), "observed_models": []}
     else:
-        envelope = json.loads(stdout)
+        try:
+            envelope = json.loads(stdout)
+        except json.JSONDecodeError:
+            # Claude stream-json is JSONL. Unicode line separators are string data.
+            envelope = [json.loads(line) for line in stdout.split("\n") if line.strip()]
+        events = envelope if isinstance(envelope, list) else [envelope]
+        if any(not isinstance(e, dict) for e in events):
+            raise RunError("Claude event stream contains a non-object event.")
         # Some CLI versions emit an array of init/assistant/result events for JSON.
         if isinstance(envelope, list):
             results = [e for e in envelope if isinstance(e, dict) and e.get("type") == "result"]
@@ -230,11 +312,15 @@ def parse_result(provider: str, mode: str, run_dir: Path, expected_session=None)
         if not isinstance(envelope, dict):
             raise RunError("Claude response is not a result object.")
         if envelope.get("type") != "result" or envelope.get("is_error") or envelope.get("subtype") != "success":
-            raise RunError("Claude did not finish successfully; inspect the captured diagnostics.")
+            raise RunError(f"Claude did not finish successfully (subtype={envelope.get('subtype')}, "
+                           f"api_error_status={envelope.get('api_error_status')}); inspect the captured diagnostics.")
         session = envelope.get("session_id")
         value = envelope.get("structured_output") if mode != "build" else envelope.get("result")
         metadata = {"usage": envelope.get("usage"),
                     "observed_models": list(envelope.get("modelUsage", {})),
+                    "reviewer_models": sorted({e["message"]["model"] for e in events
+                                               if e.get("type") == "assistant" and isinstance(e.get("message"), dict)
+                                               and isinstance(e["message"].get("model"), str)}),
                     "permission_denials": envelope.get("permission_denials", []),
                     "total_cost_usd": envelope.get("total_cost_usd")}
     try:
@@ -419,7 +505,8 @@ def main(argv=None) -> int:
     parser.add_argument("--unreviewed-spec", action="store_true")
     parser.add_argument("--proof", help="Exact agreed proof command, passed as data to the builder.")
     parser.add_argument("--artifacts", help="Persistent run directory outside the target checkout.")
-    parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("--timeout", type=int, default=1800,
+                        help="Total wall-clock deadline in seconds (default: 1800); activity does not reset it.")
     args = parser.parse_args(argv)
     try:
         if args.timeout < 1:

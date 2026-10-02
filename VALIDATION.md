@@ -1,5 +1,24 @@
 # Validation — bidirectional loop
 
+## Claude runtime repair, 2026-10-02
+
+On macOS, `python3 -m unittest discover -s tests -v` passes all **35 tests**. `python3 scripts/validate.py`, the Skill Creator validator for `skills/claudex-loop`, and `git diff --check` pass. New subprocess coverage checks Claude JSONL with Unicode separators, incomplete/malformed/duplicate results, reviewer identity separate from usage accounting, metadata-only progress, large simultaneous input/output, active and silent deadlines, descendant cleanup on POSIX, and child cleanup if writing progress fails. The already-installed Codex review isolation flag is now tracked in the fork and covered for fresh/resumed reviews and inspections; builds retain normal configuration.
+
+Live transport smoke tests use Claude Code **2.1.287**, requested and observed **claude-opus-5-5 / high**, through the runner in a disposable fixture:
+
+| Check | Result |
+|---|---|
+| Review a backup plan that deletes the only source before reading it | REVISE, concrete data-loss finding, 18 seconds |
+| Resume with corrected read-before-write plan | APPROVED, same session UUID, changed plan hash, 12 seconds |
+| Validate approval against the corrected plan | Passed |
+| Fresh inspection of the docstring-only implementation | APPROVED, different session UUID and verified change snapshot, 24 seconds |
+
+All three model turns have valid structured results and no permission denials. These are transport and workflow smoke tests, not a model-quality benchmark. The deterministic runner change does not change the review prompt, schema, model defaults, or review tool permissions. No delegated build or live Codex review was exercised in this repair.
+
+A diagnostic replay of the previously timed-out real review completed in **454 seconds**, with **393 events** and a structured REVISE result. It used the captured prompt and read-only tools with streamed output. The old run had ended at 600 seconds with empty stdout/stderr; its internal state cannot be recovered. The replay does not prove why the original run exceeded its deadline, and the plan on disk had changed since that original prompt, so this diagnostic result is not a replacement approval. No CLI downgrade or model switch was used; the old log identified 2.1.286 and the live fixture identified 2.1.287. Private prompts and transcripts remain outside this repository.
+
+The remaining sections record the original Windows validation, not a rerun of those live model checks.
+
 Development date: 2026-09-06. Tests run in disposable fixtures; production repositories were not built or modified by live smoke tests.
 
 ## Automated checks
