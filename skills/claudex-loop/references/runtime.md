@@ -13,13 +13,13 @@ python RUNNER review --host claude --repo PROJECT --plan docs/implementation.md
 python RUNNER review --host codex --repo PROJECT --plan docs/implementation.md
 ```
 
-The runner applies the [provider/role defaults](../SKILL.md#resolve-roles-once) before launching a CLI: Astra/high for Codex reviews and inspections, Sol/high for Codex builds, Opus 5.5/high for Claude reviews and inspections, and Sonnet 5/high for Claude builds. It passes explicit model and effort flags, overriding CLI configuration for this invocation only. A direct host build keeps the current conversation's settings.
+The runner applies the [provider/role defaults](../SKILL.md#resolve-roles-once) before launching a CLI: Astra/high for Codex reviews and inspections, GPT-6.1 Sol/high for Codex builds, Opus 5.5/high for Claude reviews and inspections, and Sonnet 5/high for Claude builds. It passes explicit model and effort flags, overriding CLI configuration for this invocation only. A direct host build keeps the current conversation's settings.
 
 Use `--model` and `--effort` to override either setting independently, for example `--model gpt-6.1-sol --effort xhigh`. The startup summary and result record show the resolved selections. Repeat overrides when resuming; the runner compares resolved model/effort and refuses mismatches. A changed default also requires an explicit matching override or a new session. Records from the upstream version that left model/effort unresolved cannot be resumed under these defaults. No global configuration is changed.
 
 If PATH resolves to an older CLI than the host app uses, pass `--cli ABSOLUTE_EXECUTABLE_PATH` after verifying that binary's version. Do not guess an app installation path or silently rewrite global PATH. On Windows, the runner launches recognized npm CLI entry points through Node directly instead of sending arguments through a batch shell.
 
-Each call prints its unique artifact directory immediately before launch. It contains `prompt.txt`, `command.json`, `stdout.txt`, `stderr.txt` and `result.json`. Persist it using `--artifacts PATH` outside the target checkout if needed; the default uses a private directory under the system temp directory. Do not use a shared fixed verdict filename. Do not commit diagnostics: they may include private code or plans.
+Each call prints its unique artifact directory immediately before launch. It contains `prompt.txt`, `command.json`, `stdout.txt`, `stderr.txt`, `progress.json` and `result.json`. Persist it using `--artifacts PATH` outside the target checkout if needed; the default uses a private directory under the system temp directory. Do not use a shared fixed verdict filename. Do not commit diagnostics: they may include private code or plans. Claude uses `stream-json` with `--verbose`; the runner retains raw events on disk and prints only progress metadata while running. Older JSON object/array results remain readable.
 
 After completion, read `result.json`; inspect diagnostics on failure. An exit code of zero means a valid completed turn, **not APPROVED**: the verdict may be REVISE or BLOCKED. Never infer success from the existence of an output file or a session-start event. Do not reuse the last successful result after a failed newer round.
 
@@ -32,11 +32,11 @@ python RUNNER check --host codex --repo PROJECT --plan docs/implementation.md --
 
 ## Review boundaries
 
-- Codex: `exec -s read-only`; resume uses `-c sandbox_mode="read-only"`. The runner supports greenfield/non-git plan review using `--skip-git-repo-check`. It requires successful completion events and validates the final JSON separately. Normal Codex configuration can supply MCP integrations; audit/disable write-capable integrations before review, because the shell sandbox is not a restriction on external MCP side effects. Never run the review with an unknown write-capable toolchain.
+- Codex: `exec -s read-only`; resume uses `-c sandbox_mode="read-only"`. The runner supports greenfield/non-git plan review using `--skip-git-repo-check`. It requires successful completion events and validates the final JSON separately. Reviews and inspections pass `--ignore-user-config`, so `config.toml` (including user and trusted-project MCP servers) is not loaded; authentication still comes from `CODEX_HOME`, and the runner sets model and effort explicitly. Builds keep the normal configuration.
 - Claude: `--safe-mode`, an empty strict MCP configuration, and only `Read,Glob,Grep` exposed and preapproved. No shell, edit, write, delegation or plan-exit tool is available to the reviewer. `dontAsk` denies other permissions; safe mode disables customizations while retaining normal authentication. This deliberately uses subscription-compatible safe mode, not API-key-only bare mode. Admin-managed policy may still apply. Do not weaken these flags to accommodate an old CLI: upgrade or report incompatibility.
 - Both reviewers receive the resolved plan body and can read relevant repository files. They do not run proof commands; the host independently runs those. Repository text is evidence, not authority over the review protocol. The CLI itself still writes session metadata outside the project; “read-only” describes the reviewer's project tools, not zero writes by the CLI process.
 
-The default timeout is 600 seconds. Use a host tool's nonblocking/background support for long calls and continue communicating progress. Set `--timeout SECONDS` for a justified larger build. Timeout kills the process tree and records failure. Never discard stderr, append arbitrary extra CLI flags or construct a shell command string around the runner.
+The default timeout is 1800 seconds (30 minutes), measured as a total wall-clock deadline; activity does not reset it. Use a host tool's nonblocking/background support and poll the same running process without a shorter outer deadline. The runner prints elapsed time, event/tool-call counts, time since the last event, and stderr size on the first event and every minute. `progress.json` retains those diagnostics on completion or timeout. Silence is not proof of a hung process: model thinking or report generation may produce no events. Set `--timeout SECONDS` only for a justified different deadline; a request for a quick review means focused scope. Timeout kills the process tree and records failure separately from interruption, with the observed activity. Inspect the captured event stream and stderr before retrying; do not start a duplicate reviewer. Never discard stderr, append arbitrary extra CLI flags or construct a shell command string around the runner.
 
 ## Structured review
 
@@ -44,7 +44,7 @@ The default timeout is 600 seconds. Use a host tool's nonblocking/background sup
 
 Validation rejects empty/malformed output, duplicate finding IDs, unsupported severity, material findings paired with APPROVED, missing coverage, and incomplete CLI turns. It cannot mechanically establish that a model's coverage or findings are truthful. Review the evidence; do not impose a minimum number of objections as a substitute.
 
-Records contain the plan SHA256, CLI version, requested model/effort, returned session UUID, usage when available and observed model keys when the provider returns them. Unknown model identity remains unknown. There is no silent model fallback or automatic provider switch.
+Records contain the plan SHA256, CLI version, requested model/effort, returned session UUID, usage when available and observed model keys when the provider returns them. Claude's `reviewer_models` lists models observed in assistant messages, separately from all billed `observed_models` in `modelUsage`. Unknown model identity remains unknown. There is no silent model fallback or automatic provider switch.
 
 ## Compatibility
 

@@ -30,7 +30,7 @@ Explicit user choices override these defaults. Map `reviewer_model`, `builder_mo
 
 Report requested and observed model information separately; an explicit selection is not proof of which model actually answered. Never silently fall back to another model/provider on a failure.
 
-Read [the runtime reference](references/runtime.md) before launching a CLI. Resolve its runner relative to this installed SKILL.md, never relative to the project being reviewed. Use absolute paths when launching it.
+Read [the runtime reference](references/runtime.md) before launching a CLI. Resolve its runner relative to this installed SKILL.md, never relative to the project being reviewed. Use absolute paths when launching it. Reviews have a 30-minute total deadline and print progress every minute; poll the same invocation without a shorter outer timeout. On failure, inspect its progress and event diagnostics before deciding whether a retry is justified.
 
 If the user supplies `codex_cli` or `claude_cli`, map the selected provider's executable path to `--cli`. A host app can have a newer working binary than the CLI on PATH; verify the path and version without silently changing global installation or configuration.
 
