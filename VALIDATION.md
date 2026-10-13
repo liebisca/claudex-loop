@@ -58,5 +58,5 @@ The fixture checks exercise transport and obvious-defect detection, not comparat
 
 - Live review tests were run on Windows. Automated fake-CLI coverage is configured for all three operating systems.
 - CLI versions, account access and permission behavior can change; diagnostics identify the selected executable and requested model.
-- Codex's shell sandbox does not constrain external MCP side effects; review existing tool configuration as described in the runtime reference. Claude's adapter instead removes non-reading tools and MCP from the reviewer.
+- Codex's shell sandbox does not constrain external MCP side effects; write protection relies on Codex rejecting approval-requiring MCP calls under `approval_policy="never"`, so an MCP server configured `approve` must be read-only at its source. Code-execution servers that need no approval are disabled by name (`node_repl`, the computer-use plugin); a newly added server of that kind needs the same treatment. Claude reviewers rely on auto mode's classifier and the absence of shell and write tools.
 - Structured-output validation can reject broken transport and inconsistent verdicts, but cannot prove a model's findings or claimed coverage.

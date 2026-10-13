@@ -26,6 +26,9 @@ import json, os, pathlib, sys, time
 if '--version' in sys.argv:
     print('fake-cli 1.0')
     sys.exit(0)
+if sys.argv[1:3] == ['mcp', 'list']:
+    print(os.environ.get('FAKE_MCP', '[]'))
+    sys.exit(0)
 prompt = sys.stdin.read()
 case = os.environ.get('FAKE_CASE', 'ok')
 if case == 'timeout':
@@ -210,20 +213,46 @@ class RunnerTests(unittest.TestCase):
                 self.assertEqual(code, 0, record)
                 self.assertEqual(record["session_id"], SESSION)
 
-    def test_claude_exposes_only_read_tools_and_no_mcp(self):
+    def test_claude_review_loads_user_config_without_write_tools(self):
         args = runner.command("claude", "review", self.root)
-        self.assertEqual(args[args.index("--tools")+1], "Read,Glob,Grep")
-        self.assertIn("--safe-mode", args)
-        self.assertIn("--strict-mcp-config", args)
-        self.assertEqual(args[args.index("--permission-mode")+1], "dontAsk")
+        tools = args[args.index("--tools")+1].split(",")
+        self.assertIn("Skill", tools)
+        for tool in ("Bash", "Edit", "Write", "NotebookEdit", "Agent"):
+            self.assertNotIn(tool, tools)
+        self.assertEqual(args[args.index("--allowedTools")+1], args[args.index("--tools")+1])
+        self.assertNotIn("--safe-mode", args)
+        self.assertNotIn("--strict-mcp-config", args)
+        self.assertEqual(args[args.index("--permission-mode")+1], "auto")
         self.assertEqual(args[args.index("--output-format")+1], "stream-json")
         self.assertIn("--verbose", args)
 
-    def test_codex_review_disables_mcp_config_but_build_retains_it(self):
+    def test_codex_review_loads_user_config_but_stays_read_only_without_approvals(self):
         for mode in ("review", "inspect"):
             for session in (None, SESSION):
-                self.assertIn("--ignore-user-config", runner.command("codex", mode, self.root, session=session))
-        self.assertNotIn("--ignore-user-config", runner.command("codex", "build", self.root))
+                args = runner.command("codex", mode, self.root, session=session)
+                self.assertNotIn("--ignore-user-config", args)
+                self.assertIn('approval_policy="never"', args)
+                self.assertTrue("read-only" in args or 'sandbox_mode="read-only"' in args)
+                self.assertIn("plugins.unified-computer-use@openai-bundled.enabled=false", args)
+        self.assertNotIn("plugins.unified-computer-use@openai-bundled.enabled=false",
+                         runner.command("codex", "build", self.root))
+
+    def test_codex_review_disables_listed_code_execution_servers(self):
+        for listed, expected in (
+            ('[{"name":"node_repl","enabled":true},{"name":"n8n-official","enabled":true}]', True),
+            ('[{"name":"node_repl","enabled":false}]', False),
+            ('[]', False),
+        ):
+            with self.subTest(listed=listed), patch.dict(os.environ, {"FAKE_MCP": listed}):
+                code, record, path, _ = self.invoke("claude")
+                self.assertEqual(code, 0, record)
+                argv = json.loads((path.parent / "command.json").read_text())
+                self.assertEqual("mcp_servers.node_repl.enabled=false" in argv, expected)
+                self.assertNotIn("mcp_servers.n8n-official.enabled=false", argv)
+        with patch.dict(os.environ, {"FAKE_MCP": "not json"}):
+            code, record, _, _ = self.invoke("claude")
+        self.assertEqual(code, 1)
+        self.assertIn("Cannot list Codex MCP servers", record["error"])
 
     def test_codex_resume_keeps_read_only_and_explicit_session(self):
         args = runner.command("codex", "review", self.root, session=SESSION)

@@ -138,7 +138,7 @@ The runner validates a successful CLI turn and a structured review; an empty out
 
 A clean structured result does not prove the model is right. The log preserves coverage, limitations and concrete evidence. Zero findings is valid; a large number of findings is not a quality score. `BLOCKED`, execution failures and exhausted round budgets are surfaced rather than converted to approval.
 
-Codex reviews use the read-only shell sandbox. Claude reviews expose only file reading/search, with customizations disabled and no MCP tools. These boundaries differ: see [runtime details](skills/claudex-loop/references/runtime.md), especially existing Codex MCP configuration. Builders use bounded permissions, and delegated builds require a clean checkout. A worktree preserves unrelated work; it is not itself a security sandbox.
+Reviewers load the user's normal configuration, including MCP servers and skills, so they can check plans and code against live systems. Codex reviews use the read-only shell sandbox and reject every MCP call that would need approval. Claude reviews expose no shell or write tools and use auto mode to block risky calls. See [runtime details](skills/claudex-loop/references/runtime.md), especially which MCP servers may use `approve`. Builders use bounded permissions, and delegated builds require a clean checkout. A worktree preserves unrelated work; it is not itself a security sandbox.
 
 ## Development and verification
 
