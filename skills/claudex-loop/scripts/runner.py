@@ -18,8 +18,8 @@ import uuid
 
 PROVIDERS = ("claude", "codex")
 MODEL_DEFAULTS = {
-    "claude": {"build": ("claude-sonnet-5", "high"), "review": ("claude-opus-5-5", "high")},
-    "codex": {"build": ("gpt-6.1-sol", "high"), "review": ("gpt-6-astra", "high")},
+    "claude": {"build": ("claude-sonnet-5-5", "high"), "review": ("claude-opus-5-5", "high")},
+    "codex": {"build": ("gpt-6.1-sol", "high"), "review": ("gpt-6.1-sol", "high")},
 }
 REVIEW_TOOLS = "Read,Glob,Grep,Skill,ToolSearch,WebSearch,WebFetch"
 # Code-execution MCP servers run outside Codex's read-only sandbox without an approval

@@ -168,15 +168,15 @@ class RunnerTests(unittest.TestCase):
 
     def test_role_defaults_reach_cli_and_result(self):
         cases = (
-            ("claude", "review", (), "gpt-6-astra", "high"),
+            ("claude", "review", (), "gpt-6.1-sol", "high"),
             ("codex", "review", (), "claude-opus-5-5", "high"),
-            ("claude", "inspect", (), "gpt-6-astra", "high"),
+            ("claude", "inspect", (), "gpt-6.1-sol", "high"),
             ("codex", "inspect", (), "claude-opus-5-5", "high"),
-            ("codex", "inspect", ("--builder", "claude"), "gpt-6-astra", "high"),
+            ("codex", "inspect", ("--builder", "claude"), "gpt-6.1-sol", "high"),
             ("claude", "inspect", ("--builder", "codex"), "claude-opus-5-5", "high"),
-            ("claude", "build", (), "claude-sonnet-5", "high"),
+            ("claude", "build", (), "claude-sonnet-5-5", "high"),
             ("codex", "build", (), "gpt-6.1-sol", "high"),
-            ("codex", "build", ("--builder", "claude"), "claude-sonnet-5", "high"),
+            ("codex", "build", ("--builder", "claude"), "claude-sonnet-5-5", "high"),
             ("claude", "build", ("--builder", "codex"), "gpt-6.1-sol", "high"),
         )
         for host, mode, extra, model, effort in cases:
@@ -193,7 +193,7 @@ class RunnerTests(unittest.TestCase):
                 self.assertIn(effort if record["provider"] == "claude" else f'model_reasoning_effort="{effort}"', argv)
 
     def test_model_and_effort_overrides_are_independent(self):
-        for host, default_model in (("claude", "gpt-6-astra"), ("codex", "claude-opus-5-5")):
+        for host, default_model in (("claude", "gpt-6.1-sol"), ("codex", "claude-opus-5-5")):
             for extra, model, effort in (
                 (("--model", "chosen-model"), "chosen-model", "high"),
                 (("--effort", "medium"), default_model, "medium"),
@@ -208,7 +208,7 @@ class RunnerTests(unittest.TestCase):
                     self.assertIn(effort if record["provider"] == "claude" else f'model_reasoning_effort="{effort}"', argv)
 
     def test_resume_accepts_explicit_settings_matching_defaults(self):
-        for host, model in (("claude", "gpt-6-astra"), ("codex", "claude-opus-5-5")):
+        for host, model in (("claude", "gpt-6.1-sol"), ("codex", "claude-opus-5-5")):
             with self.subTest(host=host):
                 _, _, previous, _ = self.invoke(host)
                 code, record, _, _ = self.invoke(host, extra=("--resume", str(previous), "--model", model, "--effort", "high"))
