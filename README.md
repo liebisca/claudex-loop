@@ -39,7 +39,7 @@ claudex-route: Recommend a second opinion on this plan before we build.
 claudex-route: Pick a suitable model and have it diagnose this failing test read-only.
 ```
 
-For example, Luna may suit a focused fixture-generation task, Terra a bounded implementation, and Astra or Fable a difficult review. These are task-fit recommendations, not a fixed ranking; available models, context, verification, and current pricing matter. Staying with your current model is a valid result. Route is a self-contained instruction skill with no Python dependency; a delegated run requires the selected CLI and account access. It does not use the full loop's approval-binding runner.
+For example, Luna may suit a focused fixture-generation task, Sol a bounded implementation, and Astra or Fable a difficult review. These are task-fit recommendations, not a fixed ranking; available models, context, verification, and current pricing matter. Staying with your current model is a valid result. Route is a self-contained instruction skill with no Python dependency; a delegated run requires the selected CLI and account access. It does not use the full loop's approval-binding runner.
 
 Claudex Route runs independently. Use **Claudex Loop** when you want repeated plan review, implementation, and independent inspection.
 
@@ -138,7 +138,7 @@ The runner validates a successful CLI turn and a structured review; an empty out
 
 A clean structured result does not prove the model is right. The log preserves coverage, limitations and concrete evidence. Zero findings is valid; a large number of findings is not a quality score. `BLOCKED`, execution failures and exhausted round budgets are surfaced rather than converted to approval.
 
-Reviewers load the user's normal configuration, including MCP servers and skills, so they can check plans and code against live systems. Codex reviews use the read-only shell sandbox and reject every MCP call that would need approval. Claude reviews expose no shell or write tools and use auto mode to block risky calls. See [runtime details](skills/claudex-loop/references/runtime.md), especially which MCP servers may use `approve`. Builders use bounded permissions, and delegated builds require a clean checkout. A worktree preserves unrelated work; it is not itself a security sandbox.
+Reviewers load the user's normal configuration, including MCP servers and skills, so they can check plans and code against live systems. Codex reviews use the read-only shell sandbox and reject every MCP call that would need approval. Claude reviews expose no shell or write tools and use auto mode to block risky calls. See [runtime details](skills/claudex-loop/references/runtime.md), especially which MCP servers may use `approve`. Codex runs drop the notify hook, and Codex builds also switch off plugins and apps; Claude builders load no user hooks or MCP servers. Builders use bounded permissions, and delegated builds require a clean checkout. A worktree preserves unrelated work; it is not itself a security sandbox.
 
 ## Development and verification
 
